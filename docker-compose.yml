@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: itaudit
+      POSTGRES_PASSWORD: itaudit
+      POSTGRES_DB: itaudit
+    ports:
+      - "5433:5432"
+    volumes:
+      - itaudit_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U itaudit -d itaudit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  itaudit_pg:

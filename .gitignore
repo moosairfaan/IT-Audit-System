@@ -1,0 +1,12 @@
+.venv/
+backend/data_gen/generated/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.env
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
