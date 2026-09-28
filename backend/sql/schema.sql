@@ -5,6 +5,9 @@
 DROP TABLE IF EXISTS workpapers;
 DROP TABLE IF EXISTS samples;
 DROP TABLE IF EXISTS test_runs;
+DROP TABLE IF EXISTS column_mappings;
+DROP TABLE IF EXISTS dataset_snapshots;
+DROP TABLE IF EXISTS audit_context;
 DROP TABLE IF EXISTS change_tickets;
 DROP TABLE IF EXISTS iam_accounts;
 DROP TABLE IF EXISTS sod_conflict_rules;
@@ -78,7 +81,10 @@ CREATE TABLE test_runs (
     population_count INTEGER NOT NULL,
     exception_count INTEGER NOT NULL,
     exceptions JSONB NOT NULL,
-    run_at TIMESTAMPTZ NOT NULL
+    run_at TIMESTAMPTZ NOT NULL,
+    dataset TEXT NOT NULL DEFAULT 'demo',
+    completeness JSONB NOT NULL DEFAULT '{}'::jsonb,
+    CHECK (dataset IN ('demo', 'company'))
 );
 
 CREATE INDEX test_runs_control_id_idx ON test_runs (control_id, run_id DESC);
@@ -95,6 +101,8 @@ CREATE TABLE samples (
     sample_size INTEGER NOT NULL,
     selected_ids JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
+    dataset TEXT NOT NULL DEFAULT 'demo',
+    CHECK (dataset IN ('demo', 'company')),
     CHECK (method IN ('random', 'risk_based')),
     CHECK (sample_size > 0)
 );
@@ -114,5 +122,49 @@ CREATE TABLE workpapers (
     reviewer_notes TEXT,
     created_at TIMESTAMPTZ NOT NULL,
     edited_at TIMESTAMPTZ NOT NULL,
+    dataset TEXT NOT NULL DEFAULT 'demo',
+    CHECK (dataset IN ('demo', 'company')),
     CHECK (status IN ('draft', 'reviewed', 'approved'))
+);
+
+-- Which population the controls read, and the editable test rules.
+-- privileged_roles and critical_systems are JSON arrays of strings.
+CREATE TABLE audit_context (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    active_dataset TEXT NOT NULL DEFAULT 'demo',
+    dormant_days INTEGER NOT NULL DEFAULT 90,
+    privileged_roles JSONB NOT NULL,
+    critical_systems JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    CHECK (active_dataset IN ('demo', 'company')),
+    CHECK (dormant_days >= 1)
+);
+
+INSERT INTO audit_context (
+    id, active_dataset, dormant_days, privileged_roles, critical_systems, updated_at
+) VALUES (
+    1,
+    'demo',
+    90,
+    '["trade_supervisor", "journal_approver", "payment_approver", "access_approver", "release_manager"]',
+    '["payments", "general ledger"]',
+    CURRENT_TIMESTAMP
+);
+
+-- Column mapping remembered for the next company-data upload.
+CREATE TABLE column_mappings (
+    dataset TEXT PRIMARY KEY,
+    mapping JSONB NOT NULL,
+    status_map JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+-- The population that is not currently loaded into the control tables.
+CREATE TABLE dataset_snapshots (
+    dataset TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    saved_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (dataset, table_name),
+    CHECK (dataset IN ('demo', 'company'))
 );

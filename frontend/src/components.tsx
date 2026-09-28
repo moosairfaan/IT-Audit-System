@@ -1,7 +1,8 @@
-import { useMemo, useState, type ReactNode } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { getDataSource } from "./api";
 import { Link } from "./router";
-import type { ExceptionRow, Overview } from "./types";
+import type { Completeness, DataSource, ExceptionRow, Overview } from "./types";
 
 const COLUMN_ORDER = [
   "exception_id",
@@ -27,6 +28,19 @@ const COLUMN_ORDER = [
 const SEVERITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
 export function Shell({ children }: { children: ReactNode }) {
+  const [source, setSource] = useState<DataSource | null>(null);
+
+  useEffect(() => {
+    const load = () => {
+      getDataSource()
+        .then(setSource)
+        .catch(() => setSource(null));
+    };
+    load();
+    window.addEventListener("itaudit-source", load);
+    return () => window.removeEventListener("itaudit-source", load);
+  }, []);
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -40,12 +54,23 @@ export function Shell({ children }: { children: ReactNode }) {
           <nav aria-label="Primary">
             <Link to="/">Overview</Link>
             <Link to="/data">Data</Link>
+            {source?.allow_real_data ? <Link to="/import">Import</Link> : null}
+            <Link to="/settings">Settings</Link>
           </nav>
         </div>
       </header>
+      {source?.dataset === "company" ? (
+        <p className="banner" role="status">
+          Company data is active. Controls are reading the uploaded files.
+        </p>
+      ) : null}
       <main>{children}</main>
     </div>
   );
+}
+
+export function notifySourceChange(): void {
+  window.dispatchEvent(new Event("itaudit-source"));
 }
 
 export function Message({ tone, children }: { tone: "loading" | "error" | "note"; children: ReactNode }) {
@@ -58,6 +83,39 @@ export function Message({ tone, children }: { tone: "loading" | "error" | "note"
 
 export function StatusBadge({ status }: { status: string }) {
   return <span className={`badge badge-${status}`}>{status}</span>;
+}
+
+export function CompletenessTable({ rows }: { rows: Completeness[] }) {
+  return (
+    <div className="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Control</th>
+            <th>Loaded</th>
+            <th>Tested</th>
+            <th>Excluded</th>
+            <th>Why excluded</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.control_id ?? row.name}>
+              <td>{row.control_id}</td>
+              <td>{row.records_loaded}</td>
+              <td>{row.records_tested}</td>
+              <td>{row.records_excluded}</td>
+              <td>
+                {row.exclusions.length === 0
+                  ? "No records excluded"
+                  : row.exclusions.map((item) => `${item.count} ${item.reason}`).join("; ")}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 export function ExceptionTable({ rows }: { rows: ExceptionRow[] }) {
@@ -134,7 +192,8 @@ export function OverviewCharts({ overview }: { overview: Overview }) {
     { severity: "Medium", exceptions: overview.exceptions_by_severity.medium, fill: "#5d7f99" },
     { severity: "Low", exceptions: overview.exceptions_by_severity.low, fill: "#b7c5d1" },
   ];
-  const severityMax = Math.max(...severityRows.map((row) => row.exceptions), 1);
+  const severityPeak = Math.max(...severityRows.map((row) => row.exceptions), 1);
+  const severityMax = severityPeak + Math.max(2, Math.ceil(severityPeak * 0.2));
 
   return (
     <div className="chart-grid">
@@ -156,7 +215,7 @@ export function OverviewCharts({ overview }: { overview: Overview }) {
         <h2>Exceptions by severity</h2>
         <div className="chart">
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={severityRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <BarChart data={severityRows} margin={{ top: 20, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="#e4e8ee" vertical={false} />
               <XAxis dataKey="severity" tick={{ fill: "#5c6773", fontSize: 12 }} axisLine={{ stroke: "#d5dbe3" }} tickLine={false} />
               <YAxis allowDecimals={false} domain={[0, severityMax]} tick={{ fill: "#5c6773", fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -165,6 +224,7 @@ export function OverviewCharts({ overview }: { overview: Overview }) {
                 {severityRows.map((row) => (
                   <Cell key={row.severity} fill={row.fill} />
                 ))}
+                <LabelList dataKey="exceptions" position="top" className="severity-bar-value" fill="#1c2430" fontSize={12} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -203,7 +263,7 @@ function heading(key: string): string {
 
 function cellText(value: ExceptionRow[string]): string {
   if (value === null || value === undefined || value === "") {
-    return "None";
+    return "—";
   }
   return String(value);
 }

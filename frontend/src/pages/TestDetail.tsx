@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, createSample, generateWorkpaper, getControls, getLatestSample, getRuns, runTest } from "../api";
-import { ExceptionTable, Message } from "../components";
+import { ExceptionTable, CompletenessTable, Message } from "../components";
 import { Link, useRouter } from "../router";
 import type { Control, Sample, TestRun } from "../types";
 
@@ -157,11 +157,18 @@ export function TestDetail({ controlId }: { controlId: string }) {
             <div>
               <dt>Latest run</dt>
               <dd>
-                Population {run.population_count}. Exceptions {run.exception_count}. Run {run.run_id}.
+                Population {run.population_count}. Exceptions {run.exception_count}. Run {run.run_id}.{" "}
+                {run.dataset_label}.
               </dd>
             </div>
           ) : null}
         </dl>
+        {run?.completeness ? (
+          <div className="completeness">
+            <h3>Completeness</h3>
+            <CompletenessTable rows={[{ ...run.completeness, control_id: run.control_id, name: run.name }]} />
+          </div>
+        ) : null}
       </section>
       <section className="panel">
         <h2>Exceptions</h2>
@@ -202,7 +209,7 @@ export function TestDetail({ controlId }: { controlId: string }) {
           <>
             <p className="meta">
               {sample.method === "risk_based" ? "Risk-based" : "Random"} sample of {sample.sample_size} from{" "}
-              {sample.population_size}, seed {sample.seed}. Sample {sample.sample_id}.
+              {sample.population_size}, seed {sample.seed}. Sample {sample.sample_id}. {sample.dataset_label}.
             </p>
             <div className="table-scroll sample-ids">
               <table>
@@ -223,6 +230,8 @@ export function TestDetail({ controlId }: { controlId: string }) {
               </table>
             </div>
           </>
+        ) : run ? (
+          <p className="meta">No sample has been drawn.</p>
         ) : null}
       </section>
       <section className="panel actions-panel">

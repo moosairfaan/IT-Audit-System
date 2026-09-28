@@ -102,6 +102,7 @@ export function Overview() {
                     <th>Control</th>
                     <th>Name</th>
                     <th>Exceptions</th>
+                    <th>Dataset</th>
                     <th>Test</th>
                   </tr>
                 </thead>
@@ -111,6 +112,7 @@ export function Overview() {
                       <td>{row.control_id}</td>
                       <td>{row.name}</td>
                       <td>{row.exception_count}</td>
+                      <td>{row.dataset_label ?? ""}</td>
                       <td>
                         <Link to={`/tests/${row.control_id}`}>Open</Link>
                       </td>
@@ -131,6 +133,7 @@ export function Overview() {
                     <tr>
                       <th>Workpaper</th>
                       <th>Control</th>
+                      <th>Dataset</th>
                       <th>Status</th>
                       <th>Edited</th>
                     </tr>
@@ -142,6 +145,7 @@ export function Overview() {
                           <Link to={`/workpapers/${paper.id}`}>{paper.id}</Link>
                         </td>
                         <td>{paper.control_id}</td>
+                        <td>{paper.dataset_label ?? ""}</td>
                         <td>
                           <StatusBadge status={paper.status} />
                         </td>

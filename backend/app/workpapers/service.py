@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS workpapers (
     reviewer_notes TEXT,
     created_at TIMESTAMPTZ NOT NULL,
     edited_at TIMESTAMPTZ NOT NULL,
+    dataset TEXT NOT NULL DEFAULT 'demo',
     CHECK (status IN ('draft', 'reviewed', 'approved'))
 )
 """
@@ -68,8 +69,9 @@ def generate_workpaper(
     raw = client.complete(instructions, source_json)
     sections = parse_sections(raw)
     _accept(sections, source)
-    markdown = render_markdown(sections)
+    markdown = render_markdown(sections, control_id)
     now = datetime.now(timezone.utc)
+    dataset = str(source.get("dataset") or "demo")
     workpaper_id = _insert(
         engine,
         control_id=control_id,
@@ -79,15 +81,18 @@ def generate_workpaper(
         markdown=markdown,
         source=source,
         now=now,
+        dataset=dataset,
     )
-    return _present(workpaper_id, control_id, run_id, sample_id, "draft", sections, markdown, None, now, now)
+    return _present(
+        workpaper_id, control_id, run_id, sample_id, "draft", sections, markdown, None, now, now, dataset
+    )
 
 
 def list_workpapers(engine: Engine) -> list[dict[str, Any]]:
     ensure_workpapers(engine)
     statement = text(
         """
-        SELECT workpaper_id, control_id, run_id, sample_id, status, created_at, edited_at
+        SELECT workpaper_id, control_id, run_id, sample_id, status, created_at, edited_at, dataset
         FROM workpapers
         ORDER BY workpaper_id DESC
         """
@@ -100,6 +105,8 @@ def list_workpapers(engine: Engine) -> list[dict[str, Any]]:
         body["id"] = body.pop("workpaper_id")
         body["created_at"] = body["created_at"].isoformat()
         body["edited_at"] = body["edited_at"].isoformat()
+        body["dataset"] = str(body.get("dataset") or "demo")
+        body["dataset_label"] = "Company data" if body["dataset"] == "company" else "Demo data"
         listed.append(body)
     return listed
 
@@ -134,7 +141,7 @@ def update_workpaper(
         _accept(updated, current["source"])
     if status is not None and status not in STATUSES:
         raise WorkpaperError("status must be draft, reviewed, or approved")
-    markdown = render_markdown(updated)
+    markdown = render_markdown(updated, str(current["control_id"]))
     new_status = status or current["status"]
     notes = current["reviewer_notes"] if reviewer_notes is None else reviewer_notes
     edited_at = datetime.now(timezone.utc)
@@ -181,6 +188,9 @@ def ensure_workpapers(engine: Engine) -> None:
     ensure_samples(engine)
     with engine.begin() as connection:
         connection.execute(text(_CREATE_WORKPAPERS))
+        connection.execute(
+            text("ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS dataset TEXT NOT NULL DEFAULT 'demo'")
+        )
 
 
 def _source(engine: Engine, control_id: str, run_id: int, sample_id: int | None) -> dict[str, Any]:
@@ -199,6 +209,9 @@ def _source(engine: Engine, control_id: str, run_id: int, sample_id: int | None)
         "summary": _summary(run["exceptions"], int(run["population_count"]), int(run["exception_count"])),
         "run_id": run["run_id"],
         "run_at": run["run_at"],
+        "dataset": run.get("dataset") or "demo",
+        "dataset_label": run.get("dataset_label") or "Demo data",
+        "completeness": run.get("completeness") or {},
     }
     if sample_id is None:
         return payload
@@ -271,7 +284,7 @@ def _whole(value: Decimal) -> int | str:
 
 def _accept(sections: dict[str, str], source: dict[str, Any]) -> None:
     try:
-        check_grounding(render_markdown(sections), source)
+        check_grounding(render_markdown(sections, str(source.get("control_id") or "")), source)
     except GroundingError as exc:
         raise WorkpaperError(str(exc)) from exc
     if not conclusion_is_consistent(sections["conclusion"], int(source["exception_count"])):
@@ -289,18 +302,19 @@ def _insert(
     markdown: str,
     source: dict[str, Any],
     now: datetime,
+    dataset: str,
 ) -> int:
     ensure_workpapers(engine)
     statement = text(
         """
         INSERT INTO workpapers (
             control_id, run_id, sample_id, status, sections, markdown,
-            source_json, reviewer_notes, created_at, edited_at
+            source_json, reviewer_notes, created_at, edited_at, dataset
         )
         VALUES (
             :control_id, :run_id, :sample_id, 'draft',
             CAST(:sections AS jsonb), :markdown, CAST(:source_json AS jsonb),
-            NULL, :created_at, :edited_at
+            NULL, :created_at, :edited_at, :dataset
         )
         RETURNING workpaper_id
         """
@@ -317,6 +331,7 @@ def _insert(
                 "source_json": json.dumps(source, default=str),
                 "created_at": now,
                 "edited_at": now,
+                "dataset": dataset,
             },
         ).scalar_one()
     return int(workpaper_id)
@@ -368,7 +383,7 @@ def _fetch(engine: Engine, workpaper_id: int) -> dict[str, Any] | None:
     statement = text(
         """
         SELECT workpaper_id, control_id, run_id, sample_id, status, sections,
-               markdown, source_json, reviewer_notes, created_at, edited_at
+               markdown, source_json, reviewer_notes, created_at, edited_at, dataset
         FROM workpapers
         WHERE workpaper_id = :workpaper_id
         """
@@ -382,6 +397,8 @@ def _fetch(engine: Engine, workpaper_id: int) -> dict[str, Any] | None:
     body["source"] = body.pop("source_json")
     body["created_at"] = body["created_at"].isoformat()
     body["edited_at"] = body["edited_at"].isoformat()
+    body["dataset"] = str(body.get("dataset") or "demo")
+    body["dataset_label"] = "Company data" if body["dataset"] == "company" else "Demo data"
     return body
 
 
@@ -396,6 +413,7 @@ def _present(
     reviewer_notes: str | None,
     created_at: datetime,
     edited_at: datetime,
+    dataset: str,
 ) -> dict[str, Any]:
     return {
         "id": workpaper_id,
@@ -408,4 +426,6 @@ def _present(
         "reviewer_notes": reviewer_notes,
         "created_at": created_at.isoformat(),
         "edited_at": edited_at.isoformat(),
+        "dataset": dataset,
+        "dataset_label": "Company data" if dataset == "company" else "Demo data",
     }

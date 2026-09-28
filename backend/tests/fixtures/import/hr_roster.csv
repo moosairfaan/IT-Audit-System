@@ -1,0 +1,7 @@
+Emp ID,Full Name,Dept,Job Title,Start Date,Termination
+E100,Ada Lovelace,Finance,Analyst,2020-01-15,
+E101,Grace Hopper,Technology,Engineer,01/15/2019,15-Jan-2024
+,Missing Person,Operations,Clerk,2021-02-01,
+E100,Duplicate Person,Operations,Clerk,2021-03-01,
+E102,Bad Date,Operations,Clerk,not-a-date,
+E103,Katherine Johnson,Human Resources,Manager,2022/03/04,

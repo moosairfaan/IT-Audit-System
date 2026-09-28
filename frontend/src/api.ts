@@ -1,9 +1,15 @@
 import type {
+  AuditRules,
+  Completeness,
   Control,
+  DataSource,
   DatasetCount,
+  ImportInspection,
+  ImportResult,
   Overview,
   Sample,
   TestRun,
+  ValidationReport,
   Workpaper,
   WorkpaperStatus,
   WorkpaperSummary,
@@ -128,5 +134,60 @@ export function uploadDataset(dataset: string, csv: string): Promise<{ dataset: 
     method: "POST",
     body: csv,
     headers: { "Content-Type": "text/csv" },
+  });
+}
+
+export function getDataSource(): Promise<DataSource> {
+  return request<DataSource>("/api/data-source");
+}
+
+export function setDataSource(dataset: DataSource["dataset"]): Promise<DataSource> {
+  return request<DataSource>("/api/data-source", {
+    method: "POST",
+    body: JSON.stringify({ dataset }),
+  });
+}
+
+export function getRules(): Promise<AuditRules> {
+  return request<AuditRules>("/api/settings");
+}
+
+export function saveRules(rules: AuditRules): Promise<AuditRules> {
+  return request<AuditRules>("/api/settings", {
+    method: "PUT",
+    body: JSON.stringify(rules),
+  });
+}
+
+export function getCompleteness(): Promise<{ dataset: string; label: string; controls: Completeness[] }> {
+  return request("/api/completeness");
+}
+
+export function inspectImport(
+  dataset: string,
+  csv: string,
+  mapping?: Record<string, string>,
+): Promise<ImportInspection> {
+  return request<ImportInspection>("/api/import/inspect", {
+    method: "POST",
+    body: JSON.stringify({ dataset, csv, mapping: mapping ?? null }),
+  });
+}
+
+export function validateImport(
+  files: Record<string, { csv: string; mapping: Record<string, string>; status_map: Record<string, string> }>,
+): Promise<ValidationReport> {
+  return request<ValidationReport>("/api/import/validate", {
+    method: "POST",
+    body: JSON.stringify({ files }),
+  });
+}
+
+export function commitImport(
+  files: Record<string, { csv: string; mapping: Record<string, string>; status_map: Record<string, string> }>,
+): Promise<ImportResult> {
+  return request<ImportResult>("/api/import/commit", {
+    method: "POST",
+    body: JSON.stringify({ files }),
   });
 }

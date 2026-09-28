@@ -19,5 +19,12 @@ PRIVILEGED_ROLES = frozenset(
 CRITICAL_SYSTEMS = frozenset({"payments", "general ledger"})
 
 
-def is_priority(role: str | None, system: str | None) -> bool:
-    return role in PRIVILEGED_ROLES or system in CRITICAL_SYSTEMS
+def is_priority(
+    role: str | None,
+    system: str | None,
+    privileged: frozenset[str] | set[str] | None = None,
+    critical: frozenset[str] | set[str] | None = None,
+) -> bool:
+    roles = PRIVILEGED_ROLES if privileged is None else privileged
+    systems = CRITICAL_SYSTEMS if critical is None else critical
+    return role in roles or system in systems

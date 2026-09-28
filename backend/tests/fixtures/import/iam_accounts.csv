@@ -1,0 +1,9 @@
+Account Number,Employee,Application,Access Role,Account Status,Last Sign In,Shared
+A1,E100,payments,payment_approver,Active,2026-08-01T14:00:00+00:00,no
+A2,E101,general ledger,journal_approver,A,08/01/2026,false
+A3,E100,HR system,hr_viewer,Enabled,1-Aug-2026,0
+A4,E103,payments,payment_read,1,,yes
+A5,E100,payments,payment_read,NotAStatus,2026-01-01,no
+A1,E100,payments,payment_read,Disabled,2026-01-01,no
+A6,E999,payments,payment_read,Active,2026-01-01,no
+A7,E100,payments,payment_read,Disabled,yesterday,no

@@ -3,6 +3,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 export type Route =
   | { name: "overview" }
   | { name: "data" }
+  | { name: "import" }
+  | { name: "settings" }
   | { name: "test"; controlId: string }
   | { name: "workpaper"; id: string };
 
@@ -18,6 +20,12 @@ export function parseRoute(path: string): Route {
   const parts = path.split("/").filter(Boolean);
   if (parts[0] === "data") {
     return { name: "data" };
+  }
+  if (parts[0] === "import") {
+    return { name: "import" };
+  }
+  if (parts[0] === "settings") {
+    return { name: "settings" };
   }
   if (parts[0] === "tests" && parts[1]) {
     return { name: "test", controlId: decodeURIComponent(parts[1]) };

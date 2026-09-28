@@ -7,6 +7,8 @@ from typing import Any
 
 from sqlalchemy import Engine, text
 
+from app.audit_context import active_dataset, load_rules
+from app.completeness import completeness_for
 from app.controls.catalog import CONTROLS, UnknownControl
 from app.controls.severity import annotate_run
 from app.controls.store import ensure_test_runs, get_run, latest_runs, save_run
@@ -17,12 +19,15 @@ from data_gen.catalog import AS_OF
 def run_control(engine: Engine, control_id: str, as_of: date = AS_OF) -> dict[str, Any]:
     control = _control(control_id)
     population_sql, exception_sql = _queries(control.sql_path.read_text(encoding="utf-8"))
-    params = {"as_of": as_of} if control.uses_as_of else {}
+    params: dict[str, Any] = {"as_of": as_of} if control.uses_as_of else {}
+    if ":dormant_days" in population_sql or ":dormant_days" in exception_sql:
+        params["dormant_days"] = int(load_rules(engine)["dormant_days"])
     ensure_test_runs(engine)
     with engine.connect() as connection:
         population_count = int(connection.execute(text(population_sql), params).scalar_one())
         rows = connection.execute(text(exception_sql), params).mappings().all()
     exceptions = [_jsonable(dict(row)) for row in rows]
+    dataset = active_dataset(engine)
     result = {
         "control_id": control.control_id,
         "name": control.name,
@@ -33,6 +38,9 @@ def run_control(engine: Engine, control_id: str, as_of: date = AS_OF) -> dict[st
         "exception_count": len(exceptions),
         "exceptions": exceptions,
         "run_at": datetime.now(timezone.utc),
+        "dataset": dataset,
+        "dataset_label": "Company data" if dataset == "company" else "Demo data",
+        "completeness": completeness_for(engine, control.control_id, population_count),
     }
     result["run_id"] = save_run(engine, result)
     result["run_at"] = result["run_at"].isoformat()

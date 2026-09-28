@@ -28,6 +28,8 @@ def build_overview(engine: Engine) -> dict[str, Any]:
                 "name": control.name,
                 "exception_count": count,
                 "run_id": None if run is None else run["run_id"],
+                "dataset": None if run is None else run.get("dataset"),
+                "dataset_label": None if run is None else run.get("dataset_label"),
             }
         )
         if run is None:

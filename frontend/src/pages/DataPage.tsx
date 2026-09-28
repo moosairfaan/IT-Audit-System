@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { ApiError, getDatasets, uploadDataset } from "../api";
-import { Message } from "../components";
-import type { DatasetCount } from "../types";
+import { ApiError, getCompleteness, getDataSource, getDatasets, setDataSource, uploadDataset } from "../api";
+import { CompletenessTable, Message, notifySourceChange } from "../components";
+import { Link } from "../router";
+import type { Completeness, DataSource, DatasetCount } from "../types";
 
 const TABLES: Array<{ id: string; label: string; note: string }> = [
   {
@@ -37,6 +38,8 @@ export function DataPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [uploading, setUploading] = useState<string | null>(null);
+  const [source, setSource] = useState<DataSource | null>(null);
+  const [coverage, setCoverage] = useState<Completeness[] | null>(null);
 
   useEffect(() => {
     document.title = "Data · The ITAudit System";
@@ -59,6 +62,37 @@ export function DataPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([getDataSource(), getCompleteness()])
+      .then(([nextSource, nextCoverage]) => {
+        if (!cancelled) {
+          setSource(nextSource);
+          setCoverage(nextCoverage.controls);
+        }
+      })
+      .catch((caught: unknown) => {
+        if (!cancelled) {
+          setError(messageFrom(caught));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [counts]);
+
+  async function chooseSource(dataset: DataSource["dataset"]) {
+    setError(null);
+    try {
+      const next = await setDataSource(dataset);
+      setSource(next);
+      notifySourceChange();
+      setCounts(await getDatasets());
+    } catch (caught) {
+      setError(messageFrom(caught));
+    }
+  }
 
   async function upload(dataset: string) {
     const file = files[dataset];
@@ -95,6 +129,34 @@ export function DataPage() {
           <p className="lede">Upload a CSV to replace one table. The row count is what is stored now.</p>
         </div>
       </div>
+      {source ? (
+        <section className="panel">
+          <h2>Data source</h2>
+          <div className="source-switch">
+            <button type="button" aria-pressed={source.dataset === "demo"} onClick={() => void chooseSource("demo")}>
+              Demo data
+            </button>
+            {source.allow_real_data ? (
+              <button
+                type="button"
+                aria-pressed={source.dataset === "company"}
+                onClick={() => void chooseSource("company")}
+              >
+                Company data
+              </button>
+            ) : null}
+            {source.allow_real_data ? <Link to="/import">Import company data</Link> : null}
+          </div>
+          <p className="meta">Controls, samples, and workpapers record the source that was active when they were created.</p>
+        </section>
+      ) : null}
+      {coverage ? (
+        <section className="panel">
+          <h2>Completeness</h2>
+          <p className="meta">Records loaded in the active source, how many each control tests, and why the rest are excluded.</p>
+          <CompletenessTable rows={coverage} />
+        </section>
+      ) : null}
       {error ? <Message tone="error">{error}</Message> : null}
       {notice ? <Message tone="note">{notice}</Message> : null}
       <div className="table-scroll">

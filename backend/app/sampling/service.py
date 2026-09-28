@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlalchemy import Engine, text
 
+from app.audit_context import active_dataset, load_rules
 from app.controls.catalog import CONTROLS, UnknownControl
 from app.controls.store import ensure_test_runs
 from app.load import sql_statements
@@ -35,6 +36,7 @@ CREATE TABLE IF NOT EXISTS samples (
     sample_size INTEGER NOT NULL,
     selected_ids JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
+    dataset TEXT NOT NULL DEFAULT 'demo',
     CHECK (method IN ('random', 'risk_based')),
     CHECK (sample_size > 0)
 )
@@ -66,6 +68,7 @@ def create_sample(
     if run_id is None:
         raise RunRequired(f"Run {control_id} before selecting a sample")
     created_at = datetime.now(timezone.utc)
+    dataset = active_dataset(engine)
     sample_id = _insert(
         engine,
         {
@@ -77,9 +80,21 @@ def create_sample(
             "sample_size": sample_size,
             "selected_ids": selected,
             "created_at": created_at,
+            "dataset": dataset,
         },
     )
-    return _row(sample_id, control_id, run_id, method, chosen_seed, len(items), sample_size, selected, created_at)
+    return _row(
+        sample_id,
+        control_id,
+        run_id,
+        method,
+        chosen_seed,
+        len(items),
+        sample_size,
+        selected,
+        created_at,
+        dataset,
+    )
 
 
 def latest_sample(engine: Engine, control_id: str) -> dict[str, Any]:
@@ -88,7 +103,7 @@ def latest_sample(engine: Engine, control_id: str) -> dict[str, Any]:
     statement = text(
         """
         SELECT sample_id, control_id, run_id, method, seed, population_size,
-               sample_size, selected_ids, created_at
+               sample_size, selected_ids, created_at, dataset
         FROM samples
         WHERE control_id = :control_id
         ORDER BY sample_id DESC
@@ -102,6 +117,8 @@ def latest_sample(engine: Engine, control_id: str) -> dict[str, Any]:
     body = dict(row)
     body["created_at"] = body["created_at"].isoformat()
     body["selected_ids"] = list(body["selected_ids"])
+    body["dataset"] = str(body.get("dataset") or "demo")
+    body["dataset_label"] = "Company data" if body["dataset"] == "company" else "Demo data"
     return body
 
 
@@ -110,7 +127,7 @@ def get_sample(engine: Engine, sample_id: int) -> dict[str, Any]:
     statement = text(
         """
         SELECT sample_id, control_id, run_id, method, seed, population_size,
-               sample_size, selected_ids, created_at
+               sample_size, selected_ids, created_at, dataset
         FROM samples
         WHERE sample_id = :sample_id
         """
@@ -122,6 +139,8 @@ def get_sample(engine: Engine, sample_id: int) -> dict[str, Any]:
     body = dict(row)
     body["created_at"] = body["created_at"].isoformat()
     body["selected_ids"] = list(body["selected_ids"])
+    body["dataset"] = str(body.get("dataset") or "demo")
+    body["dataset_label"] = "Company data" if body["dataset"] == "company" else "Demo data"
     return body
 
 
@@ -131,6 +150,9 @@ def load_population(engine: Engine, control_id: str) -> list[PopulationItem]:
     statements = sql_statements(sql)
     if len(statements) != 1:
         raise RuntimeError(f"{control_id} population file must contain one query")
+    rules = load_rules(engine)
+    privileged = set(rules["privileged_roles"])
+    critical = set(rules["critical_systems"])
     with engine.connect() as connection:
         rows = connection.execute(text(statements[0])).mappings().all()
     priority_by_id: dict[str, bool] = {}
@@ -140,7 +162,7 @@ def load_population(engine: Engine, control_id: str) -> list[PopulationItem]:
         if item_id not in priority_by_id:
             priority_by_id[item_id] = False
             order.append(item_id)
-        if is_priority(row["role"], row["system"]):
+        if is_priority(row["role"], row["system"], privileged, critical):
             priority_by_id[item_id] = True
     return [PopulationItem(item_id, priority_by_id[item_id]) for item_id in order]
 
@@ -149,6 +171,7 @@ def ensure_samples(engine: Engine) -> None:
     ensure_test_runs(engine)
     with engine.begin() as connection:
         connection.execute(text(_CREATE_SAMPLES))
+        connection.execute(text("ALTER TABLE samples ADD COLUMN IF NOT EXISTS dataset TEXT NOT NULL DEFAULT 'demo'"))
 
 
 def _latest_run_id(engine: Engine, control_id: str) -> int | None:
@@ -175,11 +198,11 @@ def _insert(engine: Engine, row: dict[str, Any]) -> int:
         """
         INSERT INTO samples (
             control_id, run_id, method, seed, population_size,
-            sample_size, selected_ids, created_at
+            sample_size, selected_ids, created_at, dataset
         )
         VALUES (
             :control_id, :run_id, :method, :seed, :population_size,
-            :sample_size, CAST(:selected_ids AS jsonb), :created_at
+            :sample_size, CAST(:selected_ids AS jsonb), :created_at, :dataset
         )
         RETURNING sample_id
         """
@@ -207,6 +230,7 @@ def _row(
     sample_size: int,
     selected_ids: list[str],
     created_at: datetime,
+    dataset: str,
 ) -> dict[str, Any]:
     return {
         "sample_id": sample_id,
@@ -218,4 +242,6 @@ def _row(
         "sample_size": sample_size,
         "selected_ids": selected_ids,
         "created_at": created_at.isoformat(),
+        "dataset": dataset,
+        "dataset_label": "Company data" if dataset == "company" else "Demo data",
     }

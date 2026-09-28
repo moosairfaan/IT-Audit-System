@@ -33,20 +33,41 @@ def render_sections(source: dict[str, Any]) -> dict[str, str]:
 
 
 def _population(source: dict[str, Any], population: int) -> str:
-    label = source.get("population")
-    described = f" {label}" if isinstance(label, str) and label.strip() else ""
     sample = source.get("sample")
+    described = f"The test covered a population of {population}{described_label(source)}. "
     if not isinstance(sample, dict):
-        return (
-            f"The test covered a population of {population}{described}. "
-            "The full population was tested and no sample was selected."
+        text = described + "The full population was tested and no sample was selected."
+    else:
+        text = (
+            described
+            + f"A {sample['method']} sample of {sample['sample_size']} was selected "
+            + f"from a sampling population of {sample['population_size']} "
+            + f"with seed {sample['seed']}."
         )
-    return (
-        f"The test covered a population of {population}{described}. "
-        f"A {sample['method']} sample of {sample['sample_size']} was selected "
-        f"from a sampling population of {sample['population_size']} "
-        f"with seed {sample['seed']}."
-    )
+    return text + _completeness(source.get("completeness"))
+
+
+def described_label(source: dict[str, Any]) -> str:
+    label = source.get("population")
+    if isinstance(label, str) and label.strip():
+        return f" {label}"
+    return ""
+
+
+def _completeness(value: object) -> str:
+    if not isinstance(value, dict) or "records_loaded" not in value:
+        return ""
+    sentences = [
+        f" Records loaded: {value['records_loaded']}.",
+        f" Records tested: {value['records_tested']}.",
+        f" Records excluded: {value['records_excluded']}.",
+    ]
+    exclusions = value.get("exclusions")
+    if isinstance(exclusions, list):
+        for item in exclusions:
+            if isinstance(item, dict):
+                sentences.append(f" {item['count']} excluded because {item['reason']}.")
+    return "".join(sentences)
 
 
 def _exceptions(rows: list[dict[str, Any]], exception_count: int) -> str:

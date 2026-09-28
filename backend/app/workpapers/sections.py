@@ -19,9 +19,12 @@ DEFICIENCY = "A deficiency was identified."
 STATUSES = ("draft", "reviewed", "approved")
 
 
-def render_markdown(sections: dict[str, str]) -> str:
+def render_markdown(sections: dict[str, str], control_id: str | None = None) -> str:
     parts = [f"## {title}\n\n{sections[key].strip()}" for key, title in SECTIONS]
-    return "\n\n".join(parts) + "\n"
+    body = "\n\n".join(parts) + "\n"
+    if not control_id:
+        return body
+    return f"# {control_id}\n\n{body}"
 
 
 def conclusion_is_consistent(conclusion: str, exception_count: int) -> bool:

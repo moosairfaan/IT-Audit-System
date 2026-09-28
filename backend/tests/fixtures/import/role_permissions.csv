@@ -1,0 +1,5 @@
+Role Name,Privilege
+payment_approver,approve_payment
+hr_viewer,view_employee
+journal_approver,approve_journal
+payment_read,view_payments

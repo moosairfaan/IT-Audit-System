@@ -26,6 +26,9 @@ export type TestRun = {
   exception_count: number;
   exceptions: ExceptionRow[];
   run_at: string;
+  dataset: "demo" | "company";
+  dataset_label: string;
+  completeness: Completeness;
 };
 
 export type Sample = {
@@ -38,6 +41,8 @@ export type Sample = {
   sample_size: number;
   selected_ids: string[];
   created_at: string;
+  dataset?: "demo" | "company";
+  dataset_label?: string;
 };
 
 export type WorkpaperSummary = {
@@ -48,6 +53,8 @@ export type WorkpaperSummary = {
   status: WorkpaperStatus;
   created_at: string;
   edited_at: string;
+  dataset?: "demo" | "company";
+  dataset_label?: string;
 };
 
 export type Workpaper = WorkpaperSummary & {
@@ -66,6 +73,8 @@ export type Overview = {
     name: string;
     exception_count: number;
     run_id: number | null;
+    dataset: "demo" | "company" | null;
+    dataset_label: string | null;
   }>;
   exceptions_by_severity: Record<Severity, number>;
   workpapers: WorkpaperSummary[];
@@ -74,6 +83,80 @@ export type Overview = {
 export type DatasetCount = {
   dataset: string;
   rows: number;
+};
+
+export type DataSource = {
+  dataset: "demo" | "company";
+  label: string;
+  allow_real_data: boolean;
+};
+
+export type Exclusion = {
+  reason: string;
+  count: number;
+};
+
+export type Completeness = {
+  records_loaded: number;
+  records_tested: number;
+  records_excluded: number;
+  exclusions: Exclusion[];
+  control_id?: string;
+  name?: string;
+};
+
+export type SodPair = {
+  permission_a: string;
+  permission_b: string;
+  description: string;
+};
+
+export type AuditRules = {
+  dormant_days: number;
+  privileged_roles: string[];
+  critical_systems: string[];
+  sod_pairs: SodPair[];
+  allow_real_data?: boolean;
+};
+
+export type ImportField = {
+  field: string;
+  header: string;
+  required: boolean;
+  mapped: boolean;
+};
+
+export type ImportInspection = {
+  dataset: string;
+  label: string;
+  headers: string[];
+  fields: ImportField[];
+  mapping: Record<string, string>;
+  status_values: string[];
+  status_map: Record<string, string>;
+};
+
+export type ValidationDataset = {
+  dataset: string;
+  label: string;
+  rows_seen: number;
+  rows_loaded: number;
+  rows_skipped: number;
+  skipped: Array<{ line: number; reason: string }>;
+  coverage: ImportField[];
+  blocked: boolean;
+};
+
+export type ValidationReport = {
+  datasets: ValidationDataset[];
+  can_import: boolean;
+};
+
+export type ImportResult = {
+  dataset: string;
+  label: string;
+  validation: ValidationReport;
+  completeness: Completeness[];
 };
 
 export const SECTION_FIELDS: Array<[string, string]> = [

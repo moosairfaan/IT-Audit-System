@@ -103,7 +103,8 @@ export function WorkpaperPage({ id }: { id: string }) {
           <h1>Workpaper {paper.id}</h1>
           <p className="lede">
             {paper.control_id}, run {paper.run_id}
-            {paper.sample_id ? `, sample ${paper.sample_id}` : ""}.
+            {paper.sample_id ? `, sample ${paper.sample_id}` : ""}
+            {paper.dataset_label ? `, ${paper.dataset_label}` : ""}.
           </p>
         </div>
         <StatusBadge status={paper.status} />

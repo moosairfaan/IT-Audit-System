@@ -9,12 +9,15 @@ from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
+from app.audit_context import DatasetError, RealDataDisabled, activate, allow_real_data, data_source, load_rules, save_rules, saved_mapping
+from app.completeness import completeness_report
 from app.config import load_settings
 from app.controls.catalog import UnknownControl, describe_controls
 from app.controls.runner import fetch_run, list_latest, run_all, run_control
 from app.controls.severity import annotate_run
 from app.database import database_status, get_engine
 from app.datasets import DATASETS
+from app.importer import IMPORT_DATASETS, commit_import, inspect_csv, template_csv, validate_bundle
 from app.load import LoadError, replace_dataset
 from app.overview import build_overview, dataset_counts
 from app.sampling.service import RunRequired, SampleNotFound, create_sample, get_sample, latest_sample
@@ -81,6 +84,63 @@ def create_app(workpaper_client: WorkpaperClient | None = None) -> FastAPI:
     @app.get("/api/datasets")
     def datasets() -> dict[str, object]:
         return {"datasets": dataset_counts(app.state.engine)}
+
+    @app.get("/api/data-source")
+    def read_data_source() -> dict[str, object]:
+        return data_source(app.state.engine)
+
+    @app.post("/api/data-source")
+    def choose_data_source(body: DataSourceRequest) -> dict[str, object]:
+        return activate(app.state.engine, body.dataset)
+
+    @app.get("/api/settings")
+    def read_settings() -> dict[str, object]:
+        rules = load_rules(app.state.engine)
+        rules["allow_real_data"] = allow_real_data()
+        return rules
+
+    @app.put("/api/settings")
+    def write_settings(body: RulesRequest) -> dict[str, object]:
+        return save_rules(app.state.engine, body.model_dump())
+
+    @app.get("/api/completeness")
+    def read_completeness() -> dict[str, object]:
+        source = data_source(app.state.engine)
+        return {"dataset": source["dataset"], "label": source["label"], "controls": completeness_report(app.state.engine)}
+
+    @app.get("/api/import/templates/{dataset}")
+    def import_template(dataset: str) -> Response:
+        if dataset not in IMPORT_DATASETS:
+            return JSONResponse(status_code=404, content={"detail": f"Unknown import {dataset}."})
+        return Response(
+            content=template_csv(dataset),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{dataset}.csv"'},
+        )
+
+    @app.post("/api/import/inspect")
+    def import_inspect(body: InspectRequest) -> dict[str, object]:
+        if not allow_real_data():
+            raise RealDataDisabled("Company data is turned off for this deployment.")
+        saved = saved_mapping(app.state.engine, body.dataset)
+        if body.mapping is not None:
+            saved = {
+                "mapping": body.mapping,
+                "status_map": body.status_map or (saved or {}).get("status_map", {}),
+            }
+        return inspect_csv(body.dataset, body.csv, saved)
+
+    @app.post("/api/import/validate")
+    def import_validate(body: ImportBundle) -> dict[str, object]:
+        if not allow_real_data():
+            raise RealDataDisabled("Company data is turned off for this deployment.")
+        report = validate_bundle(_files(body))
+        report.pop("rows", None)
+        return report
+
+    @app.post("/api/import/commit")
+    def import_commit(body: ImportBundle) -> dict[str, object]:
+        return commit_import(app.state.engine, _files(body))
 
     @app.post("/api/tests/run-all")
     def run_every_test() -> dict[str, object]:
@@ -187,6 +247,14 @@ def create_app(workpaper_client: WorkpaperClient | None = None) -> FastAPI:
     async def load_error(_request: Request, exc: LoadError) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": str(exc)})
 
+    @app.exception_handler(DatasetError)
+    async def dataset_error(_request: Request, exc: DatasetError) -> JSONResponse:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+    @app.exception_handler(RealDataDisabled)
+    async def real_data_disabled(_request: Request, exc: RealDataDisabled) -> JSONResponse:
+        return JSONResponse(status_code=403, content={"detail": str(exc)})
+
     return app
 
 
@@ -206,6 +274,41 @@ class SampleRequest(BaseModel):
     method: Literal["random", "risk_based"]
     sample_size: int = Field(ge=1)
     seed: int | None = None
+
+
+class DataSourceRequest(BaseModel):
+    dataset: str
+
+
+class RulesRequest(BaseModel):
+    dormant_days: int
+    privileged_roles: list[str]
+    critical_systems: list[str]
+    sod_pairs: list[dict[str, str]]
+
+
+class InspectRequest(BaseModel):
+    dataset: str
+    csv: str
+    mapping: dict[str, str] | None = None
+    status_map: dict[str, str] | None = None
+
+
+class ImportFile(BaseModel):
+    csv: str
+    mapping: dict[str, str] = Field(default_factory=dict)
+    status_map: dict[str, str] = Field(default_factory=dict)
+
+
+class ImportBundle(BaseModel):
+    files: dict[str, ImportFile]
+
+
+def _files(body: ImportBundle) -> dict[str, dict[str, object]]:
+    return {
+        name: {"csv": item.csv, "mapping": item.mapping, "status_map": item.status_map}
+        for name, item in body.files.items()
+    }
 
 
 app = create_app()
