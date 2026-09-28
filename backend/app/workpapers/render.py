@@ -33,11 +33,16 @@ def render_sections(source: dict[str, Any]) -> dict[str, str]:
 
 
 def _population(source: dict[str, Any], population: int) -> str:
+    label = source.get("population")
+    described = f" {label}" if isinstance(label, str) and label.strip() else ""
     sample = source.get("sample")
     if not isinstance(sample, dict):
-        return f"The population count is {population}. No sample was selected."
+        return (
+            f"The test covered a population of {population}{described}. "
+            "The full population was tested and no sample was selected."
+        )
     return (
-        f"The population count is {population}. "
+        f"The test covered a population of {population}{described}. "
         f"A {sample['method']} sample of {sample['sample_size']} was selected "
         f"from a sampling population of {sample['population_size']} "
         f"with seed {sample['seed']}."

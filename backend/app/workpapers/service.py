@@ -83,6 +83,27 @@ def generate_workpaper(
     return _present(workpaper_id, control_id, run_id, sample_id, "draft", sections, markdown, None, now, now)
 
 
+def list_workpapers(engine: Engine) -> list[dict[str, Any]]:
+    ensure_workpapers(engine)
+    statement = text(
+        """
+        SELECT workpaper_id, control_id, run_id, sample_id, status, created_at, edited_at
+        FROM workpapers
+        ORDER BY workpaper_id DESC
+        """
+    )
+    with engine.connect() as connection:
+        rows = connection.execute(statement).mappings().all()
+    listed: list[dict[str, Any]] = []
+    for row in rows:
+        body = dict(row)
+        body["id"] = body.pop("workpaper_id")
+        body["created_at"] = body["created_at"].isoformat()
+        body["edited_at"] = body["edited_at"].isoformat()
+        listed.append(body)
+    return listed
+
+
 def get_workpaper(engine: Engine, workpaper_id: int) -> dict[str, Any]:
     row = _load(engine, workpaper_id)
     row.pop("source")
@@ -171,6 +192,7 @@ def _source(engine: Engine, control_id: str, run_id: int, sample_id: int | None)
         "name": run["name"],
         "objective": run["objective"],
         "risk_addressed": run["risk_addressed"],
+        "population": run["population"],
         "population_count": run["population_count"],
         "exception_count": run["exception_count"],
         "exceptions": run["exceptions"],

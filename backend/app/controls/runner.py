@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import Engine, text
 
 from app.controls.catalog import CONTROLS, UnknownControl
+from app.controls.severity import annotate_run
 from app.controls.store import ensure_test_runs, get_run, latest_runs, save_run
 from app.load import sql_statements
 from data_gen.catalog import AS_OF
@@ -27,6 +28,7 @@ def run_control(engine: Engine, control_id: str, as_of: date = AS_OF) -> dict[st
         "name": control.name,
         "objective": control.objective,
         "risk_addressed": control.risk_addressed,
+        "population": control.population,
         "population_count": population_count,
         "exception_count": len(exceptions),
         "exceptions": exceptions,
@@ -39,7 +41,7 @@ def run_control(engine: Engine, control_id: str, as_of: date = AS_OF) -> dict[st
 
 def list_latest(engine: Engine) -> list[dict[str, Any]]:
     ensure_test_runs(engine)
-    return latest_runs(engine)
+    return [annotate_run(run) for run in latest_runs(engine)]
 
 
 def fetch_run(engine: Engine, control_id: str, run_id: int) -> dict[str, Any]:
@@ -48,7 +50,11 @@ def fetch_run(engine: Engine, control_id: str, run_id: int) -> dict[str, Any]:
     found = get_run(engine, control_id, run_id)
     if found is None:
         raise UnknownControl(f"Unknown run {run_id} for {control_id}")
-    return found
+    return annotate_run(found)
+
+
+def run_all(engine: Engine) -> list[dict[str, Any]]:
+    return [run_control(engine, control_id) for control_id in CONTROLS]
 
 
 def _control(control_id: str) -> Any:

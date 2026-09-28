@@ -1,48 +1,30 @@
-import { useEffect, useState } from "react";
-
-type Health = {
-  status: string;
-  database: string;
-};
+import { Shell } from "./components";
+import { DataPage } from "./pages/DataPage";
+import { Overview } from "./pages/Overview";
+import { TestDetail } from "./pages/TestDetail";
+import { WorkpaperPage } from "./pages/WorkpaperPage";
+import { RouterProvider, useRouter } from "./router";
 
 export function App() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/health")
-      .then((response) => (response.ok ? (response.json() as Promise<Health>) : Promise.reject()))
-      .then((body) => {
-        if (!cancelled) {
-          setHealth(body);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setUnavailable(true);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const database = unavailable ? "API unavailable" : health ? health.database : "Checking the database";
-
   return (
-    <>
-      <header>
-        <p className="eyebrow">Financial services IT audit</p>
-        <h1>The ITAudit System</h1>
-      </header>
-      <main>
-        <p>
-          Upload client populations, test IT general controls, and draft a workpaper for each test.
-          The synthetic broker-dealer is loaded. Control tests, sample selection, and workpaper drafts run from the API.
-        </p>
-        <p className="status">Database: {database}</p>
-      </main>
-    </>
+    <RouterProvider>
+      <Shell>
+        <Routes />
+      </Shell>
+    </RouterProvider>
   );
+}
+
+function Routes() {
+  const { route } = useRouter();
+  if (route.name === "data") {
+    return <DataPage />;
+  }
+  if (route.name === "test") {
+    return <TestDetail controlId={route.controlId} />;
+  }
+  if (route.name === "workpaper") {
+    return <WorkpaperPage id={route.id} />;
+  }
+  return <Overview />;
 }

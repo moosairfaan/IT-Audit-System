@@ -14,6 +14,7 @@ class Control:
     name: str
     objective: str
     risk_addressed: str
+    population: str
     sql_path: Path
     uses_as_of: bool
 
@@ -23,10 +24,19 @@ def _control(
     name: str,
     objective: str,
     risk_addressed: str,
+    population: str,
     filename: str,
     uses_as_of: bool,
 ) -> Control:
-    return Control(control_id, name, objective, risk_addressed, SQL_DIR / filename, uses_as_of)
+    return Control(
+        control_id,
+        name,
+        objective,
+        risk_addressed,
+        population,
+        SQL_DIR / filename,
+        uses_as_of,
+    )
 
 
 CONTROLS: dict[str, Control] = {
@@ -37,6 +47,7 @@ CONTROLS: dict[str, Control] = {
             "Terminated user access",
             "Active application accounts are removed when employment ends.",
             "A former employee can still sign in and use a production system after the termination date.",
+            "accounts belonging to terminated employees",
             "itgc_01_terminated_access.sql",
             True,
         ),
@@ -45,6 +56,7 @@ CONTROLS: dict[str, Control] = {
             "Segregation of duties",
             "No one person holds both permissions in a conflicting pair.",
             "A user who can both create and approve the same action can bypass a second-person check.",
+            "employees who have at least one application account",
             "itgc_02_segregation_of_duties.sql",
             False,
         ),
@@ -53,6 +65,7 @@ CONTROLS: dict[str, Control] = {
             "Change management",
             "A deployed change is approved by someone other than the requester and the deployer, before deployment.",
             "An unapproved or self-approved change can put unreviewed code or configuration into production.",
+            "change tickets that have been deployed",
             "itgc_03_change_management.sql",
             False,
         ),
@@ -61,6 +74,7 @@ CONTROLS: dict[str, Control] = {
             "Dormant accounts",
             "An active account has been used within the last 90 days, or it is disabled.",
             "A credential nobody is watching can be reused without the owner noticing.",
+            "active accounts that are not shared",
             "itgc_04_dormant_accounts.sql",
             True,
         ),
@@ -69,11 +83,25 @@ CONTROLS: dict[str, Control] = {
             "Shared or generic accounts",
             "Each active account belongs to one identifiable person.",
             "A shared or generic login cannot be tied to one employee, so activity cannot be attributed.",
+            "active accounts",
             "itgc_05_shared_accounts.sql",
             False,
         ),
     )
 }
+
+
+def describe_controls() -> list[dict[str, str]]:
+    return [
+        {
+            "control_id": control.control_id,
+            "name": control.name,
+            "objective": control.objective,
+            "risk_addressed": control.risk_addressed,
+            "population": control.population,
+        }
+        for control in CONTROLS.values()
+    ]
 
 
 class UnknownControl(KeyError):

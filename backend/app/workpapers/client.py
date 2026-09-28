@@ -42,6 +42,8 @@ class AnthropicClient:
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
                 payload = json.loads(response.read().decode("utf-8"))
+        except TimeoutError as exc:
+            raise WorkpaperUnavailable("The model did not respond in time. Try generating the workpaper again.") from exc
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:500]
             raise WorkpaperUnavailable(f"Anthropic request failed ({exc.code}): {detail}") from exc

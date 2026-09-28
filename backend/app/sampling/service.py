@@ -82,6 +82,29 @@ def create_sample(
     return _row(sample_id, control_id, run_id, method, chosen_seed, len(items), sample_size, selected, created_at)
 
 
+def latest_sample(engine: Engine, control_id: str) -> dict[str, Any]:
+    _known_control(control_id)
+    ensure_samples(engine)
+    statement = text(
+        """
+        SELECT sample_id, control_id, run_id, method, seed, population_size,
+               sample_size, selected_ids, created_at
+        FROM samples
+        WHERE control_id = :control_id
+        ORDER BY sample_id DESC
+        LIMIT 1
+        """
+    )
+    with engine.connect() as connection:
+        row = connection.execute(statement, {"control_id": control_id}).mappings().first()
+    if row is None:
+        raise SampleNotFound(f"No sample has been drawn for {control_id}")
+    body = dict(row)
+    body["created_at"] = body["created_at"].isoformat()
+    body["selected_ids"] = list(body["selected_ids"])
+    return body
+
+
 def get_sample(engine: Engine, sample_id: int) -> dict[str, Any]:
     ensure_samples(engine)
     statement = text(

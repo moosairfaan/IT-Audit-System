@@ -8,6 +8,8 @@ from typing import Any
 
 from sqlalchemy import Engine, text
 
+from app.controls.catalog import CONTROLS
+
 _CREATE_TEST_RUNS = """
 CREATE TABLE IF NOT EXISTS test_runs (
     run_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -102,6 +104,9 @@ def _present(row: Any) -> dict[str, Any]:
     body = dict(row)
     body["run_at"] = _iso(body["run_at"])
     body["exceptions"] = body["exceptions"] or []
+    control = CONTROLS.get(str(body["control_id"]))
+    if control is not None:
+        body["population"] = control.population
     return body
 
 

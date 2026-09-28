@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 from sqlalchemy import text
@@ -37,6 +38,18 @@ class RecordingClient:
         if self.invented is not None:
             sections["results"] = f"{sections['results']} {self.invented}"
         return json.dumps(sections)
+
+
+def test_terminated_employee_population_is_not_called_active(database: Engine) -> None:
+    run = run_control(database, "ITGC-01")
+    assert "terminated" in run["population"].lower()
+    assert not re.search(r"\bactive\b", run["population"], re.IGNORECASE)
+    client = RecordingClient()
+    paper = generate_workpaper(database, client, "ITGC-01", run["run_id"])
+    source = json.loads(client.source_json)
+    assert source["population"] == "accounts belonging to terminated employees"
+    section = paper["sections"]["population_and_sample"]
+    assert not re.search(r"\bactive\b", section, re.IGNORECASE)
 
 
 def test_prompt_separates_results_from_the_exception_narrative() -> None:

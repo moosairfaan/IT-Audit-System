@@ -2,7 +2,7 @@
 
 A tool for an IT audit team at a financial services firm. Auditors upload client-style data, the system runs IT general controls (ITGC) tests, and it drafts an audit workpaper for each test.
 
-Phase 4 drafts an audit workpaper from a stored test run. The model receives only that result. A draft is stored only when every number in it already appears in the result.
+Phase 5 is the audit dashboard. It lists the latest test runs, ranks exceptions by severity, and opens each workpaper for edit, review, and approval.
 
 The population is fictional. It is practice data for control testing, not a record of a real firm.
 
@@ -49,7 +49,11 @@ Open http://127.0.0.1:5173. If `docker compose` is not installed, use `docker-co
 
 `POST /api/tests/{control_id}/sample` draws a sample from that control's population after a run exists. The body is `method` (`random` or `risk_based`), `sample_size`, and an optional `seed`. When `seed` is omitted, the API generates one and returns it. The same method, sample size, and seed reproduce the same selected ids. Risk-based sampling takes privileged roles and the critical systems (payments and the general ledger) first, then fills the rest at random. `GET /api/samples/{sample_id}` returns the stored sample.
 
-`POST /api/workpapers/generate` drafts a workpaper for a `control_id` and `run_id`, with an optional `sample_id`. The prompt template is `backend/app/workpapers/prompt.txt`. Set `ANTHROPIC_API_KEY` before generating a live draft. `GET /api/workpapers/{id}` returns the draft. `PATCH /api/workpapers/{id}` edits sections, sets `reviewer_notes`, or moves status among `draft`, `reviewed`, and `approved`. An approved workpaper is read-only. `GET /api/workpapers/{id}/export` returns the markdown.
+`POST /api/workpapers/generate` drafts a workpaper for a `control_id` and `run_id`, with an optional `sample_id`. The prompt template is `backend/app/workpapers/prompt.txt`. Set `ANTHROPIC_API_KEY` before generating a live draft. `GET /api/workpapers` lists drafts. `GET /api/workpapers/{id}` returns one draft. `PATCH /api/workpapers/{id}` edits sections, sets `reviewer_notes`, or moves status among `draft`, `reviewed`, and `approved`. An approved workpaper is read-only. `GET /api/workpapers/{id}/export` returns the markdown.
+
+`GET /api/overview` returns controls tested, total exceptions, workpapers by status, exceptions by control, and exceptions by severity. High severity is a terminated employee who still has access, or a segregation-of-duties conflict on payments or the general ledger. Medium is every other exception. Low is a dormant account or a shared account. `POST /api/tests/run-all` runs all five controls. `GET /api/controls` returns each objective, risk, and population description. `GET /api/tests/{control_id}/sample` returns the latest sample. `GET /api/datasets` returns the row count of each uploaded table.
+
+The dashboard is at http://127.0.0.1:5173. Overview, a test page, a workpaper page, and a data upload page cover the flow from a seeded population through an approved workpaper.
 
 ```bash
 backend/.venv/bin/pytest -q

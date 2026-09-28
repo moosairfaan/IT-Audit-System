@@ -1,4 +1,4 @@
-"""HTTP API. Phase 4 drafts an audit workpaper from a test run."""
+"""HTTP API. Phase 5 serves the audit dashboard."""
 
 from __future__ import annotations
 
@@ -10,12 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from app.config import load_settings
-from app.controls.catalog import UnknownControl
-from app.controls.runner import fetch_run, list_latest, run_control
+from app.controls.catalog import UnknownControl, describe_controls
+from app.controls.runner import fetch_run, list_latest, run_all, run_control
+from app.controls.severity import annotate_run
 from app.database import database_status, get_engine
 from app.datasets import DATASETS
 from app.load import LoadError, replace_dataset
-from app.sampling.service import RunRequired, SampleNotFound, create_sample, get_sample
+from app.overview import build_overview, dataset_counts
+from app.sampling.service import RunRequired, SampleNotFound, create_sample, get_sample, latest_sample
 from app.sampling.select import SamplingError
 from app.workpapers.client import AnthropicClient, WorkpaperUnavailable
 from app.workpapers.service import (
@@ -26,6 +28,7 @@ from app.workpapers.service import (
     export_markdown,
     generate_workpaper,
     get_workpaper,
+    list_workpapers,
     update_workpaper,
 )
 
@@ -49,7 +52,7 @@ def create_app(workpaper_client: WorkpaperClient | None = None) -> FastAPI:
 
     @app.get("/api/v1/meta")
     def meta() -> dict[str, object]:
-        return {"name": "The ITAudit System", "phase": 4, "datasets": list(DATASETS)}
+        return {"name": "The ITAudit System", "phase": 5, "datasets": list(DATASETS)}
 
     @app.post("/api/upload/{dataset}")
     async def upload_dataset(dataset: str, request: Request) -> JSONResponse:
@@ -67,9 +70,25 @@ def create_app(workpaper_client: WorkpaperClient | None = None) -> FastAPI:
         loaded = replace_dataset(app.state.engine, dataset, csv_text)
         return JSONResponse(content={"dataset": dataset, "rows": loaded})
 
+    @app.get("/api/overview")
+    def overview() -> dict[str, object]:
+        return build_overview(app.state.engine)
+
+    @app.get("/api/controls")
+    def controls() -> dict[str, object]:
+        return {"controls": describe_controls()}
+
+    @app.get("/api/datasets")
+    def datasets() -> dict[str, object]:
+        return {"datasets": dataset_counts(app.state.engine)}
+
+    @app.post("/api/tests/run-all")
+    def run_every_test() -> dict[str, object]:
+        return {"runs": [annotate_run(run) for run in run_all(app.state.engine)]}
+
     @app.post("/api/tests/{control_id}/run")
     def run_test(control_id: str) -> dict[str, object]:
-        return run_control(app.state.engine, control_id)
+        return annotate_run(run_control(app.state.engine, control_id))
 
     @app.get("/api/tests")
     def list_tests() -> dict[str, object]:
@@ -89,6 +108,10 @@ def create_app(workpaper_client: WorkpaperClient | None = None) -> FastAPI:
             body.seed,
         )
 
+    @app.get("/api/tests/{control_id}/sample")
+    def read_latest_sample(control_id: str) -> dict[str, object]:
+        return latest_sample(app.state.engine, control_id)
+
     @app.get("/api/samples/{sample_id}")
     def read_sample(sample_id: int) -> dict[str, object]:
         return get_sample(app.state.engine, sample_id)
@@ -102,6 +125,10 @@ def create_app(workpaper_client: WorkpaperClient | None = None) -> FastAPI:
             body.run_id,
             body.sample_id,
         )
+
+    @app.get("/api/workpapers")
+    def read_workpapers() -> dict[str, object]:
+        return {"workpapers": list_workpapers(app.state.engine)}
 
     @app.get("/api/workpapers/{workpaper_id}")
     def read_workpaper(workpaper_id: int) -> dict[str, object]:
