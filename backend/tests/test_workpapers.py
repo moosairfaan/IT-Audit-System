@@ -52,6 +52,48 @@ def test_terminated_employee_population_is_not_called_active(database: Engine) -
     assert not re.search(r"\bactive\b", section, re.IGNORECASE)
 
 
+def test_population_section_states_completeness_counts(database: Engine) -> None:
+    run = run_control(database, "ITGC-01")
+    client = RecordingClient()
+    paper = generate_workpaper(database, client, "ITGC-01", run["run_id"])
+    source = json.loads(client.source_json)
+    completeness = source["completeness"]
+    assert completeness["records_loaded"] == run["completeness"]["records_loaded"]
+    assert completeness["records_tested"] == run["completeness"]["records_tested"]
+    assert completeness["records_excluded"] == run["completeness"]["records_excluded"]
+    section = paper["sections"]["population_and_sample"]
+    assert f"Records loaded: {completeness['records_loaded']}." in section
+    assert f"Records tested: {completeness['records_tested']}." in section
+    assert f"Records excluded: {completeness['records_excluded']}." in section
+    for item in completeness["exclusions"]:
+        assert f"{item['count']} excluded because {item['reason']}." in section
+    check_grounding(paper["markdown"], source)
+    instructions = client.instructions
+    assert "records_loaded" in instructions
+    assert "records_tested" in instructions
+    assert "records_excluded" in instructions
+
+
+def test_omitted_completeness_is_added_and_stays_grounded(database: Engine) -> None:
+    run = run_control(database, "ITGC-01")
+
+    class OmitCompleteness(RecordingClient):
+        def complete(self, instructions: str, source_json: str) -> str:
+            self.instructions = instructions
+            self.source_json = source_json
+            sections = render_sections(json.loads(source_json))
+            text = sections["population_and_sample"]
+            sections["population_and_sample"] = text.split(" Records loaded:")[0]
+            return json.dumps(sections)
+
+    client = OmitCompleteness()
+    paper = generate_workpaper(database, client, "ITGC-01", run["run_id"])
+    source = json.loads(client.source_json)
+    section = paper["sections"]["population_and_sample"]
+    assert f"Records loaded: {source['completeness']['records_loaded']}." in section
+    check_grounding(paper["markdown"], source)
+
+
 def test_prompt_separates_results_from_the_exception_narrative() -> None:
     text = PROMPT_PATH.read_text(encoding="utf-8")
     assert "do not list every exception row" in text.lower()

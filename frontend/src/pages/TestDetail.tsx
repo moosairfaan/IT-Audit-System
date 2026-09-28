@@ -153,6 +153,10 @@ export function TestDetail({ controlId }: { controlId: string }) {
             <dt>Population</dt>
             <dd>{capitalize(control.population)}</dd>
           </div>
+          <div>
+            <dt>Suggested action</dt>
+            <dd>{control.suggested_action}</dd>
+          </div>
           {run ? (
             <div>
               <dt>Latest run</dt>

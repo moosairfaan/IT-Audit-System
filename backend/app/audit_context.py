@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from app.datasets import Column, columns_for
 from app.models import Base
 from app.sampling.priority import CRITICAL_SYSTEMS, PRIVILEGED_ROLES
+from app.schema_guard import run_once
 
 DEMO = "demo"
 COMPANY = "company"
@@ -44,6 +45,11 @@ def allow_real_data() -> bool:
     return raw not in {"0", "false", "no"}
 
 
+def require_real_data() -> None:
+    if not allow_real_data():
+        raise RealDataDisabled("Company data is turned off for this deployment.")
+
+
 def dataset_label(dataset: str) -> str:
     if dataset == COMPANY:
         return "Company data"
@@ -51,6 +57,13 @@ def dataset_label(dataset: str) -> str:
 
 
 def ensure_audit_context(engine: Engine) -> None:
+    def apply() -> None:
+        _create_audit_context(engine)
+
+    run_once("audit_context", apply)
+
+
+def _create_audit_context(engine: Engine) -> None:
     with engine.begin() as connection:
         connection.execute(
             text(

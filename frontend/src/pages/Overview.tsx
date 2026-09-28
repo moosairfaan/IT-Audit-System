@@ -53,10 +53,10 @@ export function Overview() {
       <div className="page-heading">
         <div>
           <h1>Overview</h1>
-          <p className="lede">Latest results for the five IT general controls.</p>
+          <p className="lede">Latest results for the IT general controls.</p>
         </div>
         <button type="button" className="primary" onClick={() => void runAll()} disabled={running}>
-          {running ? "Running all five tests" : "Run all five tests"}
+          {running ? "Running tests" : "Run all tests"}
         </button>
       </div>
       {error ? <Message tone="error">{error}</Message> : null}

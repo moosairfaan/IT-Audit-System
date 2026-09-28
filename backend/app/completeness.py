@@ -125,4 +125,44 @@ _SQL: dict[str, tuple[str, tuple[tuple[str, str], ...]]] = {
         """,
         (("the account is disabled", "disabled"),),
     ),
+    "ITGC-06": (
+        """
+        SELECT
+            (SELECT COUNT(*) FROM iam_accounts) + (SELECT COUNT(*) FROM change_tickets) AS loaded,
+            (
+                SELECT COUNT(*)
+                FROM iam_accounts AS account
+                WHERE account.employee_id IS NOT NULL
+                  AND EXISTS (
+                      SELECT 1 FROM hr_roster AS employee
+                      WHERE employee.employee_id = account.employee_id
+                  )
+            ) AS on_roster,
+            (SELECT COUNT(*) FROM iam_accounts WHERE employee_id IS NULL) AS no_employee,
+            (
+                SELECT COUNT(*)
+                FROM change_tickets AS ticket
+                WHERE EXISTS (
+                        SELECT 1 FROM hr_roster AS employee
+                        WHERE employee.employee_id = ticket.requested_by
+                      )
+                  AND (
+                        ticket.approved_by IS NULL
+                        OR EXISTS (
+                            SELECT 1 FROM hr_roster AS employee
+                            WHERE employee.employee_id = ticket.approved_by
+                        )
+                      )
+                  AND EXISTS (
+                        SELECT 1 FROM hr_roster AS employee
+                        WHERE employee.employee_id = ticket.deployed_by
+                      )
+            ) AS known_change
+        """,
+        (
+            ("the employee is on the HR roster", "on_roster"),
+            ("the account has no employee id", "no_employee"),
+            ("the change names only people on the HR roster", "known_change"),
+        ),
+    ),
 }

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from app.audit_context import DatasetError, RealDataDisabled, activate, allow_real_data, data_source, load_rules, save_rules, saved_mapping
+from app.audit_context import DatasetError, RealDataDisabled, activate, allow_real_data, data_source, load_rules, require_real_data, save_rules, saved_mapping
 from app.completeness import completeness_report
 from app.config import load_settings
 from app.controls.catalog import UnknownControl, describe_controls
@@ -110,6 +110,7 @@ def create_app(workpaper_client: WorkpaperClient | None = None) -> FastAPI:
 
     @app.get("/api/import/templates/{dataset}")
     def import_template(dataset: str) -> Response:
+        require_real_data()
         if dataset not in IMPORT_DATASETS:
             return JSONResponse(status_code=404, content={"detail": f"Unknown import {dataset}."})
         return Response(
@@ -120,8 +121,7 @@ def create_app(workpaper_client: WorkpaperClient | None = None) -> FastAPI:
 
     @app.post("/api/import/inspect")
     def import_inspect(body: InspectRequest) -> dict[str, object]:
-        if not allow_real_data():
-            raise RealDataDisabled("Company data is turned off for this deployment.")
+        require_real_data()
         saved = saved_mapping(app.state.engine, body.dataset)
         if body.mapping is not None:
             saved = {
@@ -132,8 +132,7 @@ def create_app(workpaper_client: WorkpaperClient | None = None) -> FastAPI:
 
     @app.post("/api/import/validate")
     def import_validate(body: ImportBundle) -> dict[str, object]:
-        if not allow_real_data():
-            raise RealDataDisabled("Company data is turned off for this deployment.")
+        require_real_data()
         report = validate_bundle(_files(body))
         report.pop("rows", None)
         return report

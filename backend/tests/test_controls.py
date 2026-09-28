@@ -33,3 +33,7 @@ def test_control_exceptions_match_ground_truth(database: Engine) -> None:
             assert all(row["days_after_termination"] >= 0 for row in result["exceptions"])
         if control_id == "ITGC-03":
             assert {row["reason"] for row in result["exceptions"]} == REASONS
+    orphans = run_control(database, "ITGC-06")
+    assert orphans["exception_count"] == 0
+    assert orphans["population_count"] == 0
+    assert [row["exception_id"] for row in orphans["exceptions"]] == []

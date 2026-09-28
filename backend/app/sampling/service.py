@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import Engine, text
 
 from app.audit_context import active_dataset, load_rules
+from app.schema_guard import add_column_if_missing, run_once
 from app.controls.catalog import CONTROLS, UnknownControl
 from app.controls.store import ensure_test_runs
 from app.load import sql_statements
@@ -23,6 +24,7 @@ POPULATION_FILES = {
     "ITGC-03": "itgc_03_population.sql",
     "ITGC-04": "itgc_04_population.sql",
     "ITGC-05": "itgc_05_population.sql",
+    "ITGC-06": "itgc_06_population.sql",
 }
 
 _CREATE_SAMPLES = """
@@ -168,10 +170,13 @@ def load_population(engine: Engine, control_id: str) -> list[PopulationItem]:
 
 
 def ensure_samples(engine: Engine) -> None:
-    ensure_test_runs(engine)
-    with engine.begin() as connection:
-        connection.execute(text(_CREATE_SAMPLES))
-        connection.execute(text("ALTER TABLE samples ADD COLUMN IF NOT EXISTS dataset TEXT NOT NULL DEFAULT 'demo'"))
+    def apply() -> None:
+        ensure_test_runs(engine)
+        with engine.begin() as connection:
+            connection.execute(text(_CREATE_SAMPLES))
+            add_column_if_missing(connection, "samples", "dataset", "TEXT NOT NULL DEFAULT 'demo'")
+
+    run_once("samples", apply)
 
 
 def _latest_run_id(engine: Engine, control_id: str) -> int | None:

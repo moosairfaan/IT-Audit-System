@@ -14,7 +14,9 @@ from sqlalchemy import Engine, text
 
 from app.controls.store import ensure_test_runs, get_run
 from app.sampling.service import SampleNotFound, ensure_samples, get_sample
+from app.schema_guard import add_column_if_missing, run_once
 from app.workpapers.grounding import GroundingError, check_grounding
+from app.workpapers.render import ensure_population_completeness
 from app.workpapers.sections import SECTION_KEYS, STATUSES, conclusion_is_consistent, render_markdown
 
 PROMPT_PATH = Path(__file__).resolve().parent / "prompt.txt"
@@ -68,6 +70,7 @@ def generate_workpaper(
     instructions = PROMPT_PATH.read_text(encoding="utf-8")
     raw = client.complete(instructions, source_json)
     sections = parse_sections(raw)
+    ensure_population_completeness(sections, source)
     _accept(sections, source)
     markdown = render_markdown(sections, control_id)
     now = datetime.now(timezone.utc)
@@ -184,13 +187,14 @@ def parse_sections(raw: str) -> dict[str, str]:
 
 
 def ensure_workpapers(engine: Engine) -> None:
-    ensure_test_runs(engine)
-    ensure_samples(engine)
-    with engine.begin() as connection:
-        connection.execute(text(_CREATE_WORKPAPERS))
-        connection.execute(
-            text("ALTER TABLE workpapers ADD COLUMN IF NOT EXISTS dataset TEXT NOT NULL DEFAULT 'demo'")
-        )
+    def apply() -> None:
+        ensure_test_runs(engine)
+        ensure_samples(engine)
+        with engine.begin() as connection:
+            connection.execute(text(_CREATE_WORKPAPERS))
+            add_column_if_missing(connection, "workpapers", "dataset", "TEXT NOT NULL DEFAULT 'demo'")
+
+    run_once("workpapers", apply)
 
 
 def _source(engine: Engine, control_id: str, run_id: int, sample_id: int | None) -> dict[str, Any]:

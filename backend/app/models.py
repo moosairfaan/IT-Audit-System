@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Identity, Integer, Text
+from sqlalchemy import Boolean, Date, DateTime, Identity, Integer, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -43,9 +43,7 @@ class IamAccount(Base):
     __tablename__ = "iam_accounts"
 
     account_id: Mapped[str] = mapped_column(Text, primary_key=True)
-    employee_id: Mapped[str | None] = mapped_column(
-        Text, ForeignKey("hr_roster.employee_id"), nullable=True
-    )
+    employee_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     system: Mapped[str] = mapped_column(Text)
     role: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text)
@@ -58,11 +56,9 @@ class ChangeTicket(Base):
 
     ticket_id: Mapped[str] = mapped_column(Text, primary_key=True)
     system: Mapped[str] = mapped_column(Text)
-    requested_by: Mapped[str] = mapped_column(Text, ForeignKey("hr_roster.employee_id"))
-    approved_by: Mapped[str | None] = mapped_column(
-        Text, ForeignKey("hr_roster.employee_id"), nullable=True
-    )
-    deployed_by: Mapped[str] = mapped_column(Text, ForeignKey("hr_roster.employee_id"))
+    requested_by: Mapped[str] = mapped_column(Text)
+    approved_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deployed_by: Mapped[str] = mapped_column(Text)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deployed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     description: Mapped[str] = mapped_column(Text)

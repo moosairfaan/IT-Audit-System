@@ -23,6 +23,7 @@ def test_populations_match_the_control_definitions(database: Engine) -> None:
     assert len(load_population(database, "ITGC-03")) == len(tables["change_tickets"])
     assert len(load_population(database, "ITGC-04")) == len(active)
     assert len(load_population(database, "ITGC-05")) == len(active)
+    assert len(load_population(database, "ITGC-06")) == 0
 
 
 def test_same_seed_reproduces_the_sample_and_a_new_seed_does_not(database: Engine) -> None:

@@ -54,6 +54,21 @@ def described_label(source: dict[str, Any]) -> str:
     return ""
 
 
+def ensure_population_completeness(sections: dict[str, str], source: dict[str, Any]) -> None:
+    """State loaded, tested, and excluded counts when the draft omitted them."""
+    extra = _completeness(source.get("completeness")).strip()
+    if not extra:
+        return
+    current = sections["population_and_sample"]
+    if (
+        "Records loaded:" in current
+        and "Records tested:" in current
+        and "Records excluded:" in current
+    ):
+        return
+    sections["population_and_sample"] = f"{current.rstrip()} {extra}"
+
+
 def _completeness(value: object) -> str:
     if not isinstance(value, dict) or "records_loaded" not in value:
         return ""

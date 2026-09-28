@@ -44,9 +44,10 @@ CREATE TABLE sod_conflict_rules (
 );
 
 -- Accounts on in-scope systems. employee_id is null for a generic account.
+-- A value that is not on the HR roster is kept and reported by ITGC-06.
 CREATE TABLE iam_accounts (
     account_id TEXT PRIMARY KEY,
-    employee_id TEXT REFERENCES hr_roster (employee_id),
+    employee_id TEXT,
     system TEXT NOT NULL,
     role TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -59,13 +60,14 @@ CREATE INDEX iam_accounts_employee_id_idx ON iam_accounts (employee_id);
 CREATE INDEX iam_accounts_status_idx ON iam_accounts (status);
 
 -- Changes that were requested, approved, and deployed. Approval columns are null
--- when a change was deployed with no approval.
+-- when a change was deployed with no approval. A person id that is not on the
+-- HR roster is kept and reported by ITGC-06.
 CREATE TABLE change_tickets (
     ticket_id TEXT PRIMARY KEY,
     system TEXT NOT NULL,
-    requested_by TEXT NOT NULL REFERENCES hr_roster (employee_id),
-    approved_by TEXT REFERENCES hr_roster (employee_id),
-    deployed_by TEXT NOT NULL REFERENCES hr_roster (employee_id),
+    requested_by TEXT NOT NULL,
+    approved_by TEXT,
+    deployed_by TEXT NOT NULL,
     approved_at TIMESTAMPTZ,
     deployed_at TIMESTAMPTZ,
     description TEXT NOT NULL

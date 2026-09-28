@@ -195,7 +195,9 @@ def validate_dataset(
         "rows_seen": 0,
         "rows_loaded": 0,
         "rows_skipped": 0,
+        "rows_flagged": 0,
         "skipped": [],
+        "flagged": [],
         "coverage": coverage,
         "blocked": blocked,
         "rows": [],
@@ -216,11 +218,6 @@ def validate_dataset(
             report["rows_skipped"] += 1
             report["skipped"].append({"line": offset, "reason": reason})
             continue
-        foreign = _foreign_reason(dataset, parsed, roster_ids)
-        if foreign:
-            report["rows_skipped"] += 1
-            report["skipped"].append({"line": offset, "reason": foreign})
-            continue
         key = tuple(str(parsed[name]) for name in _KEYS[dataset])
         if key in seen_keys:
             report["rows_skipped"] += 1
@@ -229,6 +226,10 @@ def validate_dataset(
         seen_keys.add(key)
         if dataset == HR_ROSTER:
             accepted_ids.add(str(parsed["employee_id"]))
+        foreign = _foreign_reasons(dataset, parsed, roster_ids)
+        if foreign:
+            report["rows_flagged"] += 1
+            report["flagged"].append({"line": offset, "reason": "; ".join(foreign)})
         report["rows_loaded"] += 1
         report["rows"].append(parsed)
     report["accepted_ids"] = sorted(accepted_ids)
@@ -267,17 +268,15 @@ def validate_bundle(files: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
 def commit_import(engine: Any, files: dict[str, dict[str, Any]]) -> dict[str, Any]:
     from app.audit_context import (
-        RealDataDisabled,
-        allow_real_data,
         remember_company_snapshot,
         remember_demo_snapshot,
         replace_import_tables,
+        require_real_data,
         save_mapping,
     )
     from app.completeness import completeness_report
 
-    if not allow_real_data():
-        raise RealDataDisabled("Company data is turned off for this deployment.")
+    require_real_data()
     bundle = validate_bundle(files)
     if not bundle["can_import"]:
         raise LoadError("Import is blocked until every required field is mapped.")
@@ -457,20 +456,28 @@ def _parse_bool(raw: str) -> bool:
     raise ValueError(raw)
 
 
-def _foreign_reason(dataset: str, row: dict[str, Any], roster_ids: set[str] | None) -> str:
+def _foreign_reasons(dataset: str, row: dict[str, Any], roster_ids: set[str] | None) -> list[str]:
+    """People named on a row who are not in the loaded HR roster.
+
+    These rows are still loaded. ITGC-06 reports them. A blank person is not
+    an orphan: a missing approver is an unapproved change, and a blank
+    employee id is a generic account.
+    """
     if roster_ids is None:
-        return ""
+        return []
     if dataset == IAM_ACCOUNTS:
         employee_id = row.get("employee_id")
         if employee_id and str(employee_id) not in roster_ids:
-            return "employee_id is not on the HR roster"
-        return ""
+            return ["employee_id is not on the HR roster"]
+        return []
     if dataset == CHANGE_TICKETS:
+        reasons: list[str] = []
         for field in ("requested_by", "approved_by", "deployed_by"):
             value = row.get(field)
             if value and str(value) not in roster_ids:
-                return f"{field} is not on the HR roster"
-    return ""
+                reasons.append(f"{field} is not on the HR roster")
+        return reasons
+    return []
 
 
 def _score(field: str, header: str, aliases: tuple[str, ...]) -> float:

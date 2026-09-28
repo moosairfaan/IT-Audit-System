@@ -37,7 +37,11 @@ test("the import wizard reports skips and company data can be switched off", asy
   await expect(page.getByText("duplicate employee_id")).toBeVisible();
   await expect(page.getByText("status value has no mapping")).toBeVisible();
   const accounts = page.getByRole("row", { name: /IAM accounts/ });
-  await expect(accounts).toContainText("4");
+  await expect(accounts).toContainText("5");
+  await expect(accounts).toContainText("3");
+  await expect(page.getByRole("heading", { name: "Loaded, flagged for review" })).toBeVisible();
+  await expect(page.getByText("employee_id is not on the HR roster")).toBeVisible();
+  await expect(page.getByText("requested_by is not on the HR roster")).toBeVisible();
 
   await page.getByRole("button", { name: "Import company data" }).click();
   await expect(page.getByText("Company data is now the active source.")).toBeVisible();
@@ -45,6 +49,7 @@ test("the import wizard reports skips and company data can be switched off", asy
 
   await page.goto("/data");
   await page.getByRole("button", { name: "Demo data" }).click();
-  await expect(page.getByRole("row", { name: /HR roster/ })).toContainText("400");
+  const counts = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Rows" }) });
+  await expect(counts.getByRole("row", { name: /HR roster/ })).toContainText("400");
   await expect(page.getByText("Company data is active. Controls are reading the uploaded files.")).toHaveCount(0);
 });

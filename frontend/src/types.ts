@@ -13,6 +13,7 @@ export type Control = {
   objective: string;
   risk_addressed: string;
   population: string;
+  suggested_action: string;
 };
 
 export type TestRun = {
@@ -142,7 +143,9 @@ export type ValidationDataset = {
   rows_seen: number;
   rows_loaded: number;
   rows_skipped: number;
+  rows_flagged: number;
   skipped: Array<{ line: number; reason: string }>;
+  flagged: Array<{ line: number; reason: string }>;
   coverage: ImportField[];
   blocked: boolean;
 };

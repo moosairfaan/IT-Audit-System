@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy import Engine, text
 
 from app.controls.catalog import CONTROLS
+from app.schema_guard import add_column_if_missing, run_once
 
 _CREATE_TEST_RUNS = """
 CREATE TABLE IF NOT EXISTS test_runs (
@@ -32,13 +33,16 @@ CREATE INDEX IF NOT EXISTS test_runs_control_id_idx ON test_runs (control_id, ru
 
 
 def ensure_test_runs(engine: Engine) -> None:
-    with engine.begin() as connection:
-        connection.execute(text(_CREATE_TEST_RUNS))
-        connection.execute(text(_CREATE_INDEX))
-        connection.execute(text("ALTER TABLE test_runs ADD COLUMN IF NOT EXISTS dataset TEXT NOT NULL DEFAULT 'demo'"))
-        connection.execute(
-            text("ALTER TABLE test_runs ADD COLUMN IF NOT EXISTS completeness JSONB NOT NULL DEFAULT '{}'::jsonb")
-        )
+    def apply() -> None:
+        with engine.begin() as connection:
+            connection.execute(text(_CREATE_TEST_RUNS))
+            connection.execute(text(_CREATE_INDEX))
+            add_column_if_missing(connection, "test_runs", "dataset", "TEXT NOT NULL DEFAULT 'demo'")
+            add_column_if_missing(
+                connection, "test_runs", "completeness", "JSONB NOT NULL DEFAULT '{}'::jsonb"
+            )
+
+    run_once("test_runs", apply)
 
 
 def save_run(engine: Engine, result: dict[str, Any]) -> int:

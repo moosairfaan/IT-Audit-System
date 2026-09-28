@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy.engine import Engine
 
-from app.audit_context import RealDataDisabled, activate, load_rules, save_rules
+from app.audit_context import RealDataDisabled, activate, load_rules, require_real_data, save_rules
 from app.controls.runner import run_control
 from app.importer import commit_import, inspect_csv, suggest_mapping, suggest_status, validate_bundle
 
@@ -58,17 +58,23 @@ def test_validation_report_counts_skips_and_blocks_an_unmapped_field() -> None:
     assert "missing employee_id" in reasons
     assert "bad date in hire_date" in reasons
     assert "duplicate employee_id" in reasons
-    assert by_name["iam_accounts"]["rows_loaded"] == 4
-    assert by_name["iam_accounts"]["rows_skipped"] == 4
+    assert by_name["iam_accounts"]["rows_loaded"] == 5
+    assert by_name["iam_accounts"]["rows_skipped"] == 3
+    assert by_name["iam_accounts"]["rows_flagged"] == 1
     account_reasons = [item["reason"] for item in by_name["iam_accounts"]["skipped"]]
     assert "status value has no mapping" in account_reasons
     assert "duplicate account_id" in account_reasons
     assert "bad date in last_login" in account_reasons
-    assert "employee_id is not on the HR roster" in account_reasons
+    assert "employee_id is not on the HR roster" not in account_reasons
+    flagged_accounts = [item["reason"] for item in by_name["iam_accounts"]["flagged"]]
+    assert flagged_accounts == ["employee_id is not on the HR roster"]
     assert by_name["role_permissions"]["rows_loaded"] == 4
     assert by_name["role_permissions"]["rows_skipped"] == 0
-    assert by_name["change_tickets"]["rows_loaded"] == 2
-    assert by_name["change_tickets"]["rows_skipped"] == 1
+    assert by_name["role_permissions"]["rows_flagged"] == 0
+    assert by_name["change_tickets"]["rows_loaded"] == 3
+    assert by_name["change_tickets"]["rows_skipped"] == 0
+    assert by_name["change_tickets"]["rows_flagged"] == 1
+    assert by_name["change_tickets"]["flagged"][0]["reason"] == "requested_by is not on the HR roster"
     assert report["can_import"] is True
 
     blocked = _files()
@@ -111,7 +117,12 @@ def test_dormancy_setting_is_what_the_control_reads(database: Engine, monkeypatc
         save_rules(database, {**rules, "dormant_days": original})
     monkeypatch.setenv("ALLOW_REAL_DATA", "false")
     with pytest.raises(RealDataDisabled):
+        require_real_data()
+    with pytest.raises(RealDataDisabled):
         commit_import(database, _files())
+    with pytest.raises(RealDataDisabled):
+        activate(database, "company")
+    activate(database, "demo")
 
 
 def test_company_import_restores_demo_data(database: Engine) -> None:
@@ -122,9 +133,15 @@ def test_company_import_restores_demo_data(database: Engine) -> None:
         company = run_control(database, "ITGC-01")
         assert company["dataset"] == "company"
         assert company["exception_count"] != before
+        orphans = run_control(database, "ITGC-06")
+        assert [row["exception_id"] for row in orphans["exceptions"]] == ["A6", "CHG-9"]
+        assert orphans["population_count"] == 2
         activate(database, "demo")
         demo = run_control(database, "ITGC-01")
         assert demo["dataset"] == "demo"
         assert demo["exception_count"] == before
+        restored_orphans = run_control(database, "ITGC-06")
+        assert restored_orphans["exception_count"] == 0
+        assert restored_orphans["population_count"] == 0
     finally:
         activate(database, "demo")

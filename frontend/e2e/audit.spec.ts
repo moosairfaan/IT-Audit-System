@@ -6,7 +6,7 @@ test.describe.configure({ mode: "serial" });
 
 test("data page shows the seeded row counts", async ({ page }) => {
   await page.goto("/data");
-  const table = page.getByRole("table");
+  const table = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Rows" }) });
   await expect(table.getByRole("row", { name: /HR roster/ })).toContainText("400");
   await expect(table.getByRole("row", { name: /Role permissions/ })).toContainText("15");
   await expect(table.getByRole("row", { name: /Segregation-of-duties rules/ })).toContainText("5");
@@ -27,11 +27,11 @@ test("running all five controls matches ground truth and the severity chart", as
   });
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Controls tested" }).locator("xpath=..")).toContainText("0 of 5");
+  await expect(page.getByRole("heading", { name: "Controls tested" }).locator("xpath=..")).toContainText("0 of 6");
   await expect(page.getByText("No workpapers yet. Open a test to draft one.")).toBeVisible();
 
-  await page.getByRole("button", { name: "Run all five tests" }).click();
-  await expect(page.getByRole("button", { name: "Run all five tests" })).toBeEnabled({ timeout: 60_000 });
+  await page.getByRole("button", { name: "Run all tests" }).click();
+  await expect(page.getByRole("button", { name: "Run all tests" })).toBeEnabled({ timeout: 60_000 });
 
   const table = page.getByRole("table").first();
   let sum = 0;
@@ -40,6 +40,7 @@ test("running all five controls matches ground truth and the severity chart", as
     await expect(row).toContainText(String(count));
     sum += count;
   }
+  await expect(table.getByRole("row", { name: /ITGC-06/ })).toContainText("0");
 
   const totalCard = page.locator("article", { has: page.getByRole("heading", { name: "Total exceptions" }) });
   await expect(totalCard.locator(".stat-value")).toHaveText(String(sum));
@@ -126,6 +127,9 @@ test("an ITGC-01 workpaper can be edited, approved, and exported", async ({ page
 
   const population = page.getByRole("textbox", { name: "Population and sample" });
   await expect(population).not.toHaveValue(/\bactive\b/i);
+  await expect(population).toHaveValue(/Records loaded:/);
+  await expect(population).toHaveValue(/Records tested:/);
+  await expect(population).toHaveValue(/Records excluded:/);
 
   const procedure = page.getByRole("textbox", { name: "Procedure performed" });
   const edited = `${await procedure.inputValue()} Reviewed for completeness and accuracy.`;

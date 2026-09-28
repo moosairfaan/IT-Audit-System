@@ -308,6 +308,7 @@ export function ImportWizard() {
                   <th>Rows in file</th>
                   <th>Rows loaded</th>
                   <th>Rows skipped</th>
+                  <th>Flagged for review</th>
                 </tr>
               </thead>
               <tbody>
@@ -317,6 +318,7 @@ export function ImportWizard() {
                     <td>{dataset.rows_seen}</td>
                     <td>{dataset.rows_loaded}</td>
                     <td>{dataset.rows_skipped}</td>
+                    <td>{dataset.rows_flagged}</td>
                   </tr>
                 ))}
               </tbody>
@@ -336,6 +338,25 @@ export function ImportWizard() {
               </div>
             ),
           )}
+          {report.datasets.some((dataset) => dataset.flagged.length > 0) ? (
+            <div>
+              <h3>Loaded, flagged for review</h3>
+              {report.datasets.map((dataset) =>
+                dataset.flagged.length === 0 ? null : (
+                  <div key={`${dataset.dataset}-flagged`}>
+                    <p className="meta">{dataset.label}</p>
+                    <ul className="skip-list">
+                      {dataset.flagged.map((item) => (
+                        <li key={`${dataset.dataset}-${item.line}-${item.reason}`}>
+                          Line {item.line}: {item.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ),
+              )}
+            </div>
+          ) : null}
           {imported ? (
             <>
               <Message tone="note">Company data is now the active source.</Message>
