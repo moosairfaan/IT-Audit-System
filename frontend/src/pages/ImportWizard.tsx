@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ApiError, commitImport, inspectImport, validateImport } from "../api";
+import { ApiError, apiUrl, commitImport, inspectImport, validateImport } from "../api";
 import { CompletenessTable, Message, notifySourceChange } from "../components";
 import type { ImportField, ImportResult, ValidationReport } from "../types";
 
@@ -170,7 +170,7 @@ export function ImportWizard() {
                       {fileNames[file.id] ? <span className="cell-note">{fileNames[file.id]}</span> : null}
                     </td>
                     <td>
-                      <a href={`/api/import/templates/${file.id}`}>Download template</a>
+                      <a href={apiUrl(`/api/import/templates/${file.id}`)}>Download template</a>
                     </td>
                   </tr>
                 ))}

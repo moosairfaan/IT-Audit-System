@@ -24,12 +24,17 @@ export class ApiError extends Error {
   }
 }
 
+export function apiUrl(path: string): string {
+  const base = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+  return `${base}${path}`;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (init?.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const response = await fetch(path, { ...init, headers });
+  const response = await fetch(apiUrl(path), { ...init, headers });
   if (!response.ok) {
     throw new ApiError(await readDetail(response), response.status);
   }
