@@ -1,1 +1,8 @@
--r backend/requirements.txt
+# Railpack installs this file before the rest of the repo is copied.
+# Keep it identical to backend/requirements.txt.
+fastapi>=0.115
+sqlalchemy>=2.0
+pandas>=2.2
+pytest>=8.0
+uvicorn>=0.32
+psycopg[binary]>=3.2
